@@ -439,13 +439,13 @@ class MainWindow(QWidget):
         self.curve.setData(x, y)
 
         # y 轴满量程 0~30
-        self.plot.setYRange(0, 30, padding=0)
+        # self.plot.setYRange(0, 30, padding=0)
 
         # 设置轴标签
         self.plot.setLabel("bottom", "AD值")
         self.plot.setLabel("left", "含水量 y (%)")
 
-        # 设置刻度（主刻度：x=2000, y=0.5）
+        # 设置刻度（主刻度：x=500, y=0.5）
         self._apply_axis_ticks(x_min=min(x), x_max=max(x))
 
     def _apply_axis_ticks(self, x_min: int, x_max: int):
@@ -455,10 +455,11 @@ class MainWindow(QWidget):
         ticks_x = [(v, str(v)) for v in range(start_x, x_max + step_x, step_x)]
         self.plot.getAxis("bottom").setTicks([ticks_x])
 
-        # 纵轴主刻度 0.5（显示为 0.0, 0.5, 1.0 ... 30.0）
-        step_y = 0.5
+        # 纵轴主刻度 0.1（显示为 0.0, 0.1, 0.2 ... ）
+        step_y = 0.1
         ticks_y = [(v, f"{v:.1f}") for v in [i * step_y for i in range(int(30 / step_y) + 1)]]
         self.plot.getAxis("left").setTicks([ticks_y])
+        self.plot.enableAutoRange(axis='y', enable=True)  # 每次数据更新绘图时y坐标轴缩放的自动适配
 
     def clear_history(self):
         self.records.clear()
