@@ -178,11 +178,12 @@ class MainWindow(QWidget):
         self.table.setColumnWidth(0, 60)  # 序号 列宽度
         self.table.setColumnWidth(1, 120)  # 时间 列宽度
         self.table.setColumnWidth(2, 110)  # 原始数据(32bit) 列宽度
-        self.table.setColumnWidth(3, 100)  # AD值 列宽度
+        self.table.setColumnWidth(3, 110)  # AD值 列宽度
         self.table.setColumnWidth(4, 100)  # 含水量y 列宽度
         self.table.verticalHeader().setVisible(False)  # 隐藏左侧行号
         self.table.horizontalHeader().setStretchLastSection(True)  # 最后一列自动填满剩余空间
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionMode(QAbstractItemView.NoSelection)  # 设置表格不可选中
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)  # 设置表格不能编辑
         left.addWidget(self.table, 1)
 
         # ===== 标定面板（右侧）=====
@@ -407,15 +408,20 @@ class MainWindow(QWidget):
 
         self.refresh_plot()
 
+    def add_center_item(self, row, col, text):
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(row, col, item)
+    
     def append_row(self, rec: ParsedRecord):
         row = self.table.rowCount()
         self.table.insertRow(row)
-        self.table.setItem(row, 0, QTableWidgetItem(str(rec.idx)))
+        self.add_center_item(row, 0, str(rec.idx))
         t_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(rec.ts))
-        self.table.setItem(row, 1, QTableWidgetItem(t_str))
-        self.table.setItem(row, 2, QTableWidgetItem(rec.hex32))
-        self.table.setItem(row, 3, QTableWidgetItem(str(rec.dec)))
-        self.table.setItem(row, 4, QTableWidgetItem(f"{rec.y:.3f}"))
+        self.add_center_item(row, 1, t_str)
+        self.add_center_item(row, 2, rec.hex32)
+        self.add_center_item(row, 3, str(rec.dec))
+        self.add_center_item(row, 4, f"{rec.y:.3f}")
 
         # 自动滚到最新
         self.table.scrollToBottom()
@@ -490,7 +496,8 @@ class MainWindow(QWidget):
         if not path:
             return
         try:
-            with open(path, "w", encoding="utf-8") as f:
+            with open(path, "w", encoding="utf-8-sig", newline="") as f:
+
                 f.write("序号,时间,原始数据(32bit),AD值,含水量y（%）\n")
                 for r in self.records:
                     t_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r.ts))
@@ -544,7 +551,7 @@ class MainWindow(QWidget):
                 continue
             dec_val = int(dec_item.text())
             y_val = dec_val * self.k
-            self.table.setItem(row, 4, QTableWidgetItem(f"{y_val:.3f}"))
+            self.add_center_item(row, 4, f"{y_val:.3f}")
 
         self.latest_label.setText(f"当前含水量：{self.records[-1].y:.3f}%")
 
