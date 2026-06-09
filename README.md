@@ -3,7 +3,7 @@
 Python 3.8/3.9 in Windows 11
 #### 命令行安装必要的包（这里用清华的镜像）
 ```cmd
-pip install PySide6 pyqtgraph pyinstaller -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install pyserial PySide6 pyqtgraph pyinstaller -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 #### 命令行运行程序
 ```cmd
