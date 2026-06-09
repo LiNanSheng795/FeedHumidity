@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+
+# PyCharm
+.idea/
+
+# 虚拟环境
+.venv/
+venv/
+
+# 打包
+build/
+dist/
+
+# 日志
+*.log
+
+# 临时文件
+*.tmp
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+*.csv
+*.txt
+*.spec
+*Copy*
