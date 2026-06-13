@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 import serial
 import serial.tools.list_ports
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer, Qt, QSize
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -111,7 +111,7 @@ class MainWindow(QWidget):
         self.setWindowTitle("力源饲料水分监测仪")  # 窗口名称
         icon_path = resource_path("icon.ico")
         self.setWindowIcon(QIcon(icon_path))
-        self.resize(1080, 680)  # 默认窗口大小
+        self.resize(1280, 680)  # 默认窗口大小
 
         self.serial_port = None
         self.read_cmd = READ_CMD
@@ -140,15 +140,21 @@ class MainWindow(QWidget):
         top = QHBoxLayout()
         self.port_combo = QComboBox()
         self.port_combo.setMinimumWidth(100)
+        self.port_combo.setMinimumHeight(30)
         self.baud_combo = QComboBox()
         self.baud_combo.addItems(["2400", "4800", "9600", "19200", "28800", "38400", "57600", "115200"])
         self.baud_combo.setCurrentText("9600")
         self.baud_combo.setMinimumWidth(90)
+        self.baud_combo.setMinimumHeight(30)
 
         self.btn_refresh_ports = QPushButton("刷新串口")
+        self.btn_refresh_ports.setMinimumHeight(30)
+        self.btn_refresh_ports.setStyleSheet("font-size: 15px; background: #CBDCEB")
         self.btn_refresh_ports.clicked.connect(self.refresh_ports)
 
         self.btn_serial = QPushButton("打开串口")
+        self.btn_serial.setMinimumHeight(30)
+        self.btn_serial.setStyleSheet("font-size: 15px; background: #CBDCEB")
         self.btn_serial.clicked.connect(self.toggle_serial)
 
         self.led = QLabel()
@@ -157,9 +163,11 @@ class MainWindow(QWidget):
         self.set_led("gray")
         self.status_label = QLabel("状态：停止")
         self.latest_label = QLabel("当前含水量：—")
-        self.latest_label.setStyleSheet("font-size: 22px; font-weight: 700; color: blue")
+        self.latest_label.setStyleSheet("font-size: 40px; font-weight: 700; color: blue")
 
         self.btn_toggle = QPushButton("开始采集")
+        self.btn_toggle.setMinimumHeight(30)
+        self.btn_toggle.setStyleSheet("font-size: 15px; font-weight: 700; background: #CBDCEB")
         self.btn_toggle.setEnabled(False)
         self.btn_toggle.clicked.connect(self.toggle_monitor)
 
@@ -171,8 +179,9 @@ class MainWindow(QWidget):
         top.addWidget(self.btn_serial)
         top.addWidget(self.led)
         top.addWidget(self.status_label, 1)
-        top.addWidget(self.latest_label, 2)
         top.addWidget(self.btn_toggle)
+        top.addSpacing(30)
+        top.addWidget(self.latest_label, 2)
         root.addLayout(top)
 
         self.refresh_ports()
@@ -263,45 +272,12 @@ class MainWindow(QWidget):
         calib_layout.setHorizontalSpacing(8)
         calib_layout.setVerticalSpacing(8)
 
-        # 公式（富文本）
-        self.formula_label = QLabel()
-        self.formula_label.setTextFormat(Qt.RichText)
-        self.formula_label.setWordWrap(True)
-        self.formula_label.setStyleSheet("""
-        QLabel{
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 10px 12px;
-            color: #333;
-        }
-        """)
-
-        self.formula_label.setText("""
-        <div style="font-family:'Times New Roman','SimSun'; font-size:16pt; line-height:1.6;">
-          <div style="font-size:18pt; margin-bottom:6px;"><b>公式</b></div>
-
-          <div style="margin-left:2px;">
-            <span style="font-style:italic;">k</span> = 
-            ( <span style="font-style:italic;">y</span><sub>2</sub> − <span style="font-style:italic;">y</span><sub>1</sub> )
-            /
-            ( AD<sub>2</sub> − AD<sub>1</sub> )
-          </div>
-
-          <div style="margin-top:6px; margin-left:2px;">
-            <span style="font-style:italic;">y</span> = AD × <span style="font-style:italic;">k</span>
-          </div>
-        </div>
-        """)
-
-        calib_layout.addWidget(self.formula_label, 0, 0, 1, 4)
-
         self.dec1_edit = QLineEdit()
         self.y1_edit = QLineEdit()
         self.dec2_edit = QLineEdit()
         self.y2_edit = QLineEdit()
 
-        self.btn_cal = QPushButton("计算标定")
+        self.btn_cal = QPushButton("标 定")
         self.btn_cal.clicked.connect(self.calibrate)
 
         self.k_label = QLabel("k=—")
@@ -321,10 +297,10 @@ class MainWindow(QWidget):
         self.dec1_edit.setStyleSheet("font-size:12pt;")
         self.y1_edit.setStyleSheet("font-size:12pt;")
 
-        calib_layout.addWidget(lbl_dec1, 1, 0)
-        calib_layout.addWidget(self.dec1_edit, 1, 1)
-        calib_layout.addWidget(lbl_y1, 1, 2)
-        calib_layout.addWidget(self.y1_edit, 1, 3)
+        calib_layout.addWidget(lbl_dec1, 0, 0)
+        calib_layout.addWidget(self.dec1_edit, 0, 1)
+        calib_layout.addWidget(lbl_y1, 0, 2)
+        calib_layout.addWidget(self.y1_edit, 0, 3)
 
         # 行2：dec2 + y2
         lbl_dec2 = QLabel("AD₂")
@@ -340,17 +316,18 @@ class MainWindow(QWidget):
         self.dec2_edit.setStyleSheet("font-size:12pt;")
         self.y2_edit.setStyleSheet("font-size:12pt;")
 
-        calib_layout.addWidget(lbl_dec2, 2, 0)
-        calib_layout.addWidget(self.dec2_edit, 2, 1)
-        calib_layout.addWidget(lbl_y2, 2, 2)
-        calib_layout.addWidget(self.y2_edit, 2, 3)
+        calib_layout.addWidget(lbl_dec2, 1, 0)
+        calib_layout.addWidget(self.dec2_edit, 1, 1)
+        calib_layout.addWidget(lbl_y2, 1, 2)
+        calib_layout.addWidget(self.y2_edit, 1, 3)
 
         # 按钮 + k 显示（同一行更紧凑）
         self.btn_cal.setFixedHeight(32)
+        self.btn_cal.setStyleSheet("color:purple; font-size:14pt; font-weight:600; background: #CBDCEB")
         self.k_label.setStyleSheet("""
         QLabel{
             background: white;
-            color: blue;
+            color: purple;
             font-size: 16pt;
             font-weight: bold;
             border: 1px solid #e0e0e0;
@@ -359,8 +336,8 @@ class MainWindow(QWidget):
         }
         """)
 
-        calib_layout.addWidget(self.btn_cal, 3, 0, 1, 2)
-        calib_layout.addWidget(self.k_label, 3, 2, 1, 2)
+        calib_layout.addWidget(self.btn_cal, 2, 0, 1, 2)
+        calib_layout.addWidget(self.k_label, 2, 2, 1, 2)
 
         # 让输入框两列更均衡
         calib_layout.setColumnStretch(1, 1)
