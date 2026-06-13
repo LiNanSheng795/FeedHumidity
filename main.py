@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 import pyqtgraph as pg
+from collections import deque
+from statistics import median, mean
 
 
 def resource_path(relative_path: str) -> str:
@@ -29,6 +31,9 @@ HEADER = ["01", "03", "04"]
 # AD38 默认读取命令：01 03 00 00 00 02 C4 0B
 # 含义：地址1，功能码03，从寄存器0开始读取2个寄存器
 READ_CMD = bytes.fromhex("01 03 00 00 00 02 C4 0B")
+
+SERIAL_INTERVAL_MS = 100  # 串口采集时间间隔
+FILTER_INTERVAL_MS = 3000  # 屏幕显示刷新时间间隔
 
 
 @dataclass
@@ -86,7 +91,7 @@ class StreamParser:
             # yy1 = self._tokens[i+7]
             # yy2 = self._tokens[i+8]
 
-            # 你要的：HH hh LL ll -> 32bit
+            # HH hh LL ll -> 32bit
             value = (int(hh, 16) << 24) | (int(h, 16) << 16) | (int(ll, 16) << 8) | int(l, 16)
             hex32 = f"{value:08X}"
             out.append((hex32, value))
@@ -110,6 +115,17 @@ class MainWindow(QWidget):
 
         self.serial_port = None
         self.read_cmd = READ_CMD
+
+        #------------ 数据缓存、滤波窗口大小 --------------#
+        self.raw_buffer = deque(maxlen=100)  # 原始AD缓存
+        self.median_buffer = deque(maxlen=5)  # 中值滤波后的缓存
+
+        self.median_window = 21  # 中值窗口
+        self.average_window = 5  # 滑动平均窗口
+
+        self.latest_hex32 = None
+        self.latest_raw_dec = None
+        #---------------------------------------------#
 
         self.records: List[ParsedRecord] = []
         self.next_idx = 1
@@ -356,10 +372,16 @@ class MainWindow(QWidget):
         mid.addWidget(panel_widget, 1)
         root.addLayout(mid, 3)
 
-        # Timer
-        self.timer = QTimer(self)
-        self.timer.setInterval(1000)  # 1000ms
-        self.timer.timeout.connect(self.poll_serial)
+        # --------------Timer 定时器 -----------------#
+        # 串口采集定时器
+        self.serial_timer = QTimer(self)
+        self.serial_timer.setInterval(SERIAL_INTERVAL_MS)
+        self.serial_timer.timeout.connect(self.poll_serial)
+
+        # 滤波显示定时器
+        self.filter_timer = QTimer(self)
+        self.filter_timer.setInterval(FILTER_INTERVAL_MS)
+        self.filter_timer.timeout.connect(self.update_filtered_display)
 
         self.monitoring = False
 
@@ -432,7 +454,8 @@ class MainWindow(QWidget):
 
     def close_serial(self):
         """关闭串口，并停止采集。"""
-        self.timer.stop()
+        self.serial_timer.stop()
+        self.filter_timer.stop()
         self.monitoring = False
         self.btn_toggle.setText("开始采集")
         self.btn_toggle.setEnabled(False)
@@ -458,12 +481,14 @@ class MainWindow(QWidget):
 
         self.monitoring = not self.monitoring
         if self.monitoring:
-            self.timer.start()
+            self.serial_timer.start()
+            self.filter_timer.start()
             self.btn_toggle.setText("暂停采集")
             self.status_label.setText("状态：采集中")
             self.set_led("green")
         else:
-            self.timer.stop()
+            self.serial_timer.stop()
+            self.filter_timer.stop()
             self.btn_toggle.setText("开始采集")
             self.status_label.setText("状态：暂停")
             self.set_led("yellow")
@@ -471,7 +496,8 @@ class MainWindow(QWidget):
     def poll_serial(self):
         """定时发送 MODBUS 读取命令，接收 9 字节返回帧并解析。"""
         if not (self.serial_port and self.serial_port.is_open):
-            self.timer.stop()
+            self.serial_timer.stop()
+            self.filter_timer.stop()
             self.monitoring = False
             self.btn_toggle.setText("开始采集")
             self.status_label.setText("状态：串口未打开")
@@ -483,7 +509,8 @@ class MainWindow(QWidget):
             self.serial_port.write(self.read_cmd)
             data = self.serial_port.read(9)
         except Exception as e:
-            self.timer.stop()
+            self.serial_timer.stop()
+            self.filter_timer.stop()
             self.monitoring = False
             self.btn_toggle.setText("开始采集")
             self.status_label.setText("状态：串口通信失败")
@@ -549,13 +576,51 @@ class MainWindow(QWidget):
         return hex32, dec
 
     def add_record(self, hex32: str, dec: int):
-        now = time.time()
-        y = dec * self.k if self.is_calibrated else 0.0
-        rec = ParsedRecord(idx=self.next_idx, ts=now, hex32=hex32, dec=dec, y=y)
+
+        self.latest_hex32 = hex32
+        self.latest_raw_dec = dec
+
+        self.raw_buffer.append(dec)
+
+    def get_filtered_dec(self):
+
+        if len(self.raw_buffer) < self.median_window:
+            return None
+        # 中值滤波
+        recent_raw = list(self.raw_buffer)[-self.median_window:]
+        med_value = median(recent_raw)
+        self.median_buffer.append(med_value)
+        # 滑动平均
+        recent_med = list(self.median_buffer)[-self.average_window:]
+        filtered_dec = mean(recent_med)
+
+        return int(round(filtered_dec))
+
+    def update_filtered_display(self):
+
+        filtered_dec = self.get_filtered_dec()
+        if filtered_dec is None:
+            return
+        hex32 = f"{filtered_dec:08X}"
+
+        y = filtered_dec * self.k if self.is_calibrated else 0.0
+
+        rec = ParsedRecord(
+            idx=self.next_idx,
+            ts=time.time(),
+            hex32=hex32,
+            dec=filtered_dec,
+            y=y
+        )
+
         self.records.append(rec)
         self.append_row(rec)
         self.next_idx += 1
-        self.latest_label.setText(f"当前含水量：{y:.3f}%")
+
+        self.latest_label.setText(
+            f"当前含水量：{y:.3f}%"
+        )
+
         self.refresh_plot()
 
     def add_center_item(self, row, col, text):
@@ -650,7 +715,8 @@ class MainWindow(QWidget):
 
     def reset_session(self, clear_serial: bool = False):
         # 停止旧监控
-        self.timer.stop()
+        self.serial_timer.stop()
+        self.filter_timer.stop()
         self.monitoring = False
         self.btn_toggle.setText("开始采集")
 
